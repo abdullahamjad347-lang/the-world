@@ -1,0 +1,6 @@
+{
+  "name": "Karkunan Duty",
+  "description": "Daily Karkunan Duty List & Coaster Booking Management application with attendance tracking and approval workflows.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

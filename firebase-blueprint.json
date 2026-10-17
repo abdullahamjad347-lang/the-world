@@ -1,0 +1,132 @@
+{
+  "entities": {
+    "User": {
+      "title": "User",
+      "description": "Authenticated user profile with role and group membership",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string" },
+        "email": { "type": "string" },
+        "displayName": { "type": "string" },
+        "role": { "type": "string", "enum": ["super_admin", "group_admin", "worker"] },
+        "assignedGroup": { "type": "string", "enum": ["A", "B", "C", "ALL"] },
+        "active": { "type": "boolean" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["userId", "email", "displayName", "role", "assignedGroup", "active", "createdAt", "updatedAt"]
+    },
+    "DutyGroup": {
+      "title": "DutyGroup",
+      "description": "Security and operational duty group",
+      "type": "object",
+      "properties": {
+        "code": { "type": "string", "enum": ["A", "B", "C"] },
+        "name": { "type": "string" },
+        "active": { "type": "boolean" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["code", "name", "active", "updatedAt"]
+    },
+    "WeeklySchedule": {
+      "title": "WeeklySchedule",
+      "description": "Predefined weekly schedule assignment",
+      "type": "object",
+      "properties": {
+        "groupId": { "type": "string", "enum": ["A", "B", "C"] },
+        "dayOfWeek": { "type": "integer" },
+        "dayNameUrdu": { "type": "string" },
+        "sortOrder": { "type": "integer" },
+        "workerName": { "type": "string" },
+        "isCoordinator": { "type": "boolean" },
+        "coordinatorLabel": { "type": "string" },
+        "active": { "type": "boolean" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["groupId", "dayOfWeek", "dayNameUrdu", "sortOrder", "workerName", "isCoordinator", "active", "updatedAt"]
+    },
+    "AttendanceRecord": {
+      "title": "AttendanceRecord",
+      "description": "Daily attendance log for scheduled duty workers",
+      "type": "object",
+      "properties": {
+        "groupId": { "type": "string", "enum": ["A", "B", "C"] },
+        "dutyDate": { "type": "string" },
+        "dayOfWeek": { "type": "integer" },
+        "workerName": { "type": "string" },
+        "isCoordinator": { "type": "boolean" },
+        "arrivalTime": { "type": "string" },
+        "departureTime": { "type": "string" },
+        "status": { "type": "string", "enum": ["recorded", "not_recorded", "incomplete", "needs_review"] },
+        "notes": { "type": "string" },
+        "recordedBy": { "type": "string" },
+        "recordedByName": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["groupId", "dutyDate", "dayOfWeek", "workerName", "isCoordinator", "arrivalTime", "departureTime", "status", "recordedBy", "recordedByName", "createdAt", "updatedAt"]
+    },
+    "BookingMessage": {
+      "title": "BookingMessage",
+      "description": "Incoming message for coaster shuttle booking",
+      "type": "object",
+      "properties": {
+        "bookingRef": { "type": "string" },
+        "groupId": { "type": "string", "enum": ["A", "B", "C"] },
+        "source": { "type": "string" },
+        "originalMessage": { "type": "string" },
+        "receivedAt": { "type": "string", "format": "date-time" },
+        "status": { "type": "string", "enum": ["pending", "accepted", "declined"] },
+        "decidedBy": { "type": "string" },
+        "decidedByName": { "type": "string" },
+        "decidedAt": { "type": "string", "format": "date-time" },
+        "decisionNote": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["bookingRef", "groupId", "source", "originalMessage", "status", "createdAt", "updatedAt"]
+    },
+    "AuditLog": {
+      "title": "AuditLog",
+      "description": "System operational audit log",
+      "type": "object",
+      "properties": {
+        "actorId": { "type": "string" },
+        "actorEmail": { "type": "string" },
+        "actorName": { "type": "string" },
+        "action": { "type": "string" },
+        "entityType": { "type": "string" },
+        "entityId": { "type": "string" },
+        "details": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["actorId", "actorEmail", "actorName", "action", "entityType", "entityId", "createdAt"]
+    }
+  },
+  "firestore": {
+    "/users/{userId}": {
+      "schema": { "$ref": "#/entities/User" },
+      "description": "User profile with role and duty group access control"
+    },
+    "/duty_groups/{groupId}": {
+      "schema": { "$ref": "#/entities/DutyGroup" },
+      "description": "Duty group metadata and configuration"
+    },
+    "/weekly_schedules/{scheduleId}": {
+      "schema": { "$ref": "#/entities/WeeklySchedule" },
+      "description": "Predefined weekly schedule assignments by weekday and group"
+    },
+    "/attendance_records/{attendanceId}": {
+      "schema": { "$ref": "#/entities/AttendanceRecord" },
+      "description": "Daily duty attendance records"
+    },
+    "/booking_messages/{messageId}": {
+      "schema": { "$ref": "#/entities/BookingMessage" },
+      "description": "Received coaster booking requests for accept/decline workflow"
+    },
+    "/audit_logs/{logId}": {
+      "schema": { "$ref": "#/entities/AuditLog" },
+      "description": "System audit trail records"
+    }
+  }
+}

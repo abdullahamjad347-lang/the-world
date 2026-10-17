@@ -1,0 +1,195 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // Default deny catch-all
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // Helper functions
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function incoming() {
+      return request.resource.data;
+    }
+
+    function existing() {
+      return resource.data;
+    }
+
+    function isValidId(id) {
+      return id is string && id.size() > 0 && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    function isSuperAdmin() {
+      return isSignedIn() && (
+        ('email' in request.auth.token && request.auth.token.email == "abdullahamjad347@gmail.com") ||
+        (exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
+         get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == "super_admin")
+      );
+    }
+
+    function canAccessGroup(groupCode) {
+      return isSignedIn() && (
+        isSuperAdmin() ||
+        (exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
+         (get(/databases/$(database)/documents/users/$(request.auth.uid)).data.assignedGroup == groupCode ||
+          get(/databases/$(database)/documents/users/$(request.auth.uid)).data.assignedGroup == "ALL"))
+      );
+    }
+
+    function isValidUser(data) {
+      return data.userId is string && data.userId.size() > 0 && data.userId.size() <= 128 &&
+             data.email is string && data.email.size() <= 256 &&
+             data.displayName is string && data.displayName.size() <= 100 &&
+             data.role in ['super_admin', 'group_admin', 'worker'] &&
+             data.assignedGroup in ['A', 'B', 'C', 'ALL'] &&
+             data.active is bool &&
+             data.createdAt is timestamp &&
+             data.updatedAt is timestamp;
+    }
+
+    function isValidDutyGroup(data) {
+      return data.code in ['A', 'B', 'C'] &&
+             data.name is string && data.name.size() > 0 && data.name.size() <= 50 &&
+             data.active is bool &&
+             data.updatedAt is timestamp;
+    }
+
+    function isValidWeeklySchedule(data) {
+      return data.groupId in ['A', 'B', 'C'] &&
+             data.dayOfWeek is int && data.dayOfWeek >= 1 && data.dayOfWeek <= 7 &&
+             data.dayNameUrdu is string && data.dayNameUrdu.size() > 0 && data.dayNameUrdu.size() <= 30 &&
+             data.sortOrder is int && data.sortOrder >= 0 &&
+             data.workerName is string && data.workerName.size() > 0 && data.workerName.size() <= 100 &&
+             data.isCoordinator is bool &&
+             (!('coordinatorLabel' in data) || (data.coordinatorLabel is string && data.coordinatorLabel.size() <= 50)) &&
+             data.active is bool &&
+             data.updatedAt is timestamp;
+    }
+
+    function isValidAttendance(data) {
+      return data.groupId in ['A', 'B', 'C'] &&
+             data.dutyDate is string && data.dutyDate.size() == 10 &&
+             data.dayOfWeek is int && data.dayOfWeek >= 1 && data.dayOfWeek <= 7 &&
+             data.workerName is string && data.workerName.size() > 0 && data.workerName.size() <= 100 &&
+             data.isCoordinator is bool &&
+             data.arrivalTime is string && data.arrivalTime.size() <= 10 &&
+             data.departureTime is string && data.departureTime.size() <= 10 &&
+             data.status in ['recorded', 'not_recorded', 'incomplete', 'needs_review'] &&
+             (!('notes' in data) || (data.notes is string && data.notes.size() <= 500)) &&
+             data.recordedBy is string && data.recordedBy.size() <= 128 &&
+             data.recordedByName is string && data.recordedByName.size() <= 100 &&
+             data.createdAt is timestamp &&
+             data.updatedAt is timestamp;
+    }
+
+    function isValidBookingMessage(data) {
+      return data.bookingRef is string && data.bookingRef.size() > 0 && data.bookingRef.size() <= 64 &&
+             data.groupId in ['A', 'B', 'C'] &&
+             data.source is string && data.source.size() <= 50 &&
+             data.originalMessage is string && data.originalMessage.size() > 0 && data.originalMessage.size() <= 2000 &&
+             data.status in ['pending', 'accepted', 'declined'] &&
+             (!('decidedBy' in data) || data.decidedBy == null || (data.decidedBy is string && data.decidedBy.size() <= 128)) &&
+             (!('decidedByName' in data) || data.decidedByName == null || (data.decidedByName is string && data.decidedByName.size() <= 100)) &&
+             (!('decidedAt' in data) || data.decidedAt == null || data.decidedAt is timestamp) &&
+             (!('decisionNote' in data) || data.decisionNote == null || (data.decisionNote is string && data.decisionNote.size() <= 500)) &&
+             data.createdAt is timestamp &&
+             data.updatedAt is timestamp;
+    }
+
+    function isValidAuditLog(data) {
+      return data.actorId is string && data.actorId.size() <= 128 &&
+             data.actorEmail is string && data.actorEmail.size() <= 256 &&
+             data.actorName is string && data.actorName.size() <= 100 &&
+             data.action is string && data.action.size() <= 100 &&
+             data.entityType is string && data.entityType.size() <= 50 &&
+             data.entityId is string && data.entityId.size() <= 128 &&
+             data.details is string && data.details.size() <= 1000 &&
+             data.createdAt is timestamp;
+    }
+
+    // User profiles
+    match /users/{userId} {
+      allow get: if isSignedIn() && (request.auth.uid == userId || isSuperAdmin());
+      allow list: if isSignedIn();
+      allow create: if isSignedIn() && request.auth.uid == userId && isValidUser(incoming()) &&
+                       incoming().userId == request.auth.uid &&
+                       (incoming().role == 'worker' || ('email' in request.auth.token && request.auth.token.email == "abdullahamjad347@gmail.com"));
+      allow update: if isSignedIn() && (request.auth.uid == userId || isSuperAdmin()) &&
+                       isValidUser(incoming()) &&
+                       incoming().userId == existing().userId &&
+                       incoming().createdAt == existing().createdAt &&
+                       (isSuperAdmin() || incoming().diff(existing()).affectedKeys().hasOnly(['displayName', 'updatedAt']));
+      allow delete: if isSignedIn() && isSuperAdmin();
+    }
+
+    // Duty Groups
+    match /duty_groups/{groupId} {
+      allow get, list: if isSignedIn();
+      allow create, update, delete: if isSuperAdmin();
+    }
+
+    // Predefined Weekly Schedules
+    match /weekly_schedules/{scheduleId} {
+      allow get, list: if isSignedIn();
+      allow create, update, delete: if isSuperAdmin();
+    }
+
+    // Attendance Records
+    match /attendance_records/{attendanceId} {
+      allow get, list: if isSignedIn();
+      allow create: if isSignedIn() &&
+                       isValidAttendance(incoming()) &&
+                       incoming().recordedBy == request.auth.uid &&
+                       incoming().createdAt is timestamp && incoming().createdAt <= request.time &&
+                       incoming().updatedAt is timestamp && incoming().updatedAt <= request.time;
+      allow update: if isSignedIn() &&
+                       isValidAttendance(incoming()) &&
+                       incoming().groupId == existing().groupId &&
+                       incoming().dutyDate == existing().dutyDate &&
+                       incoming().workerName == existing().workerName &&
+                       incoming().createdAt == existing().createdAt &&
+                       incoming().updatedAt is timestamp && incoming().updatedAt <= request.time &&
+                       incoming().diff(existing()).affectedKeys().hasOnly(['arrivalTime', 'departureTime', 'status', 'notes', 'recordedBy', 'recordedByName', 'updatedAt']);
+      allow delete: if isSuperAdmin();
+    }
+
+    // Coaster Booking Messages
+    match /booking_messages/{messageId} {
+      allow get, list: if isSignedIn();
+      allow create: if isSignedIn() &&
+                       isValidBookingMessage(incoming()) &&
+                       incoming().status == 'pending' &&
+                       incoming().createdAt is timestamp && incoming().createdAt <= request.time;
+      allow update: if isSignedIn() &&
+                       isValidBookingMessage(incoming()) &&
+                       incoming().bookingRef == existing().bookingRef &&
+                       incoming().groupId == existing().groupId &&
+                       incoming().originalMessage == existing().originalMessage &&
+                       incoming().createdAt == existing().createdAt &&
+                       incoming().updatedAt is timestamp && incoming().updatedAt <= request.time &&
+                       (
+                         (existing().status == 'pending' &&
+                          (incoming().status == 'accepted' || incoming().status == 'declined') &&
+                          incoming().decidedBy == request.auth.uid &&
+                          incoming().diff(existing()).affectedKeys().hasOnly(['status', 'decidedBy', 'decidedByName', 'decidedAt', 'decisionNote', 'updatedAt'])) ||
+                         isSuperAdmin()
+                       );
+      allow delete: if isSuperAdmin();
+    }
+
+    // Audit logs
+    match /audit_logs/{logId} {
+      allow get, list: if isSuperAdmin();
+      allow create: if isSignedIn() &&
+                       isValidAuditLog(incoming()) &&
+                       incoming().actorId == request.auth.uid &&
+                       incoming().createdAt is timestamp && incoming().createdAt <= request.time;
+      allow update, delete: if false;
+    }
+  }
+}
